@@ -1,0 +1,33 @@
+{
+  "usuarios": {
+    "7127341580": {
+      "nombre": "Wen (celu)",
+      "rol": "admin",
+      "camaras": true,
+      "ejecutar_comandos": true,
+      "editar_archivos": true
+    },
+    "8695547311": {
+      "nombre": "Wen (PC)",
+      "rol": "admin",
+      "camaras": true,
+      "ejecutar_comandos": true,
+      "editar_archivos": true
+    },
+    "8820235343": {
+      "nombre": "Mamá (celu)",
+      "rol": "familia",
+      "camaras": true,
+      "ejecutar_comandos": false,
+      "editar_archivos": false
+    }
+  },
+  "permisos_familiares": {
+    "8820235343": {
+      "puede_ver_estado_general": true,
+      "puede_saber_si_admin_en_casa": true,
+      "puede_saber_si_admin_durmiendo": false,
+      "puede_pedir_alarma_urgente": true
+    }
+  }
+}

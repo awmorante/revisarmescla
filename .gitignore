@@ -1,0 +1,12 @@
+# Archivos de Python
+__pycache__/
+*.pyc
+
+# Archivos de entorno y llaves
+.env
+.aider*
+
+# Archivos temporales
+*.save
+.DS_Store
+*.log
