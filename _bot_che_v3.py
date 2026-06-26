@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 bot_che_v3.py - CHE · Asistente personal multi-usuario con permisos, presencia, audio y streaming en vivo
-PROXIMO A PROBAR ARREGLA MENU Y AUDIO
 """
 
 import os
@@ -466,25 +465,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if await manejar_presencia_familia(update, texto, chat_id):
             return
 
-    # ── Saludo simple → mostrar teclado sin ir a la IA ──────
-    texto_l = texto.lower().strip()
-    saludos = ["hola", "buenas", "buen dia", "buenos dias",
-               "buenas tardes", "buenas noches", "hey", "hi", "ola"]
-    if any(texto_l == s or texto_l.startswith(s + " ") or texto_l.startswith(s + ",") for s in saludos):
-        teclado = TECLADO_ADMIN if es_admin(cfg) else TECLADO_FAMILIA
-        nombre = cfg.get("nombre", "")
-        if es_admin(cfg):
-            await update.message.reply_text(
-                f"Hola {nombre}! Qué necesitás?",
-                reply_markup=teclado
-            )
-        else:
-            await update.message.reply_text(
-                f"Hola {nombre}! 👋 Tocá una opción o escribime lo que necesitás.",
-                reply_markup=teclado
-            )
-        return
-
     # ── IA ────────────────────────────────────────────────────
     await update.message.reply_text("⏳ Consultando...")
     sys_prompt = get_sys_prompt(cfg, chat_id)
@@ -498,8 +478,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     guardar_historial(chat_id, texto, respuesta)
     guardar_sesion(chat_id, texto, respuesta)
-    teclado_resp = TECLADO_ADMIN if es_admin(cfg) else TECLADO_FAMILIA
-    await update.message.reply_text(respuesta[:4000], reply_markup=teclado_resp)
+    await update.message.reply_text(respuesta[:4000])
 
     # Bash solo para admin
     if cfg.get("ejecutar_comandos", False):
@@ -576,19 +555,10 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if r.status_code == 200:
             texto_transcrito = r.json()["text"]
             await msg_temp.edit_text(f"🎤 *Escuché:* _{texto_transcrito}_", parse_mode="Markdown")
-
-            # 3. Procesar el texto transcripto directo (sin asignar update.message.text)
-            teclado = TECLADO_ADMIN if es_admin(cfg) else TECLADO_FAMILIA
-            sys_prompt = get_sys_prompt(cfg, chat_id)
-            respuesta, _ = llamar_groq(texto_transcrito, sys_prompt, chat_id)
-            if not respuesta:
-                respuesta, _ = llamar_gemini(texto_transcrito, sys_prompt, chat_id)
-            if respuesta:
-                guardar_historial(chat_id, texto_transcrito, respuesta)
-                guardar_sesion(chat_id, texto_transcrito, respuesta)
-                await update.message.reply_text(respuesta[:4000], reply_markup=teclado)
-            else:
-                await update.message.reply_text("❌ No pude procesar el audio.", reply_markup=teclado)
+            
+            # 3. Inyectar el texto transcrito y procesar
+            update.message.text = texto_transcrito
+            await handle_message(update, context)
         else:
             await msg_temp.edit_text("❌ Error al entender el audio.")
     except Exception as e:
