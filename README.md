@@ -1,5 +1,7 @@
 # CHE — Asistente personal en Telegram
 
+# PRUEBA GIT - Esta línea solo existe en la rama pruebas-audio-y-menu.
+
 Bot de Telegram multi-usuario corriendo en Linux local (Dell).
 
 ## Módulos
