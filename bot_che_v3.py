@@ -685,20 +685,20 @@ def main():
 
     # app = Application.builder().token(BOT_TOKEN).build()
 
+
     
 async def _post_init(application):
-    """Carga inicial de plugins y arranca el loop de recarga."""
-    _cargar_plugins()
-    asyncio.create_task(_loop_plugins())
- 
-app = (
-    Application.builder()
-    .token(BOT_TOKEN)
-    .post_init(_post_init)
-    .build()
-)
- 
- 
+        """Carga inicial de plugins y arranca el loop de recarga."""
+        _cargar_plugins()
+        asyncio.create_task(_loop_plugins())
+
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .post_init(_post_init)
+        .build()
+    )
+
     # Manejadores de mensajes
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
