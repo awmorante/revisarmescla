@@ -10,6 +10,8 @@ import time
 import uuid
 import subprocess
 import requests
+import asyncio
+import importlib.util
 from datetime import datetime
 from pathlib import Path
 
@@ -44,6 +46,8 @@ USUARIOS_DIR  = BASE_DIR / "usuarios"
 
 comandos_pendientes: dict = {}
 
+PLUGINS_DIR = Path(__file__).resolve().parent / "plugins"
+_plugins_cache: dict = {}
 
 # ══════════════════════════════════════════════════════════════
 # USUARIOS Y PERMISOS
@@ -432,6 +436,64 @@ def extraer_comando(texto: str):
 
 
 # ══════════════════════════════════════════════════════════════
+# SISTEMA DE PLUGINS HOT-RELOAD
+# Cada .py en plugins/ debe exportar:
+#   KEYWORDS: list[str]   — palabras que activan el plugin
+#   async def procesar(update, texto, cfg) -> bool
+#       Retorna True si el plugin manejó el mensaje (corta el flujo)
+# ══════════════════════════════════════════════════════════════
+ 
+def _cargar_plugins():
+    """Escanea plugins/ y carga o recarga los archivos modificados."""
+    if not PLUGINS_DIR.exists():
+        PLUGINS_DIR.mkdir(parents=True, exist_ok=True)
+        return
+    for py_file in sorted(PLUGINS_DIR.glob("*.py")):
+        if py_file.name.startswith("_"):
+            continue  # ignorar __init__.py etc.
+        try:
+            mtime = py_file.stat().st_mtime
+        except OSError:
+            continue
+        cached = _plugins_cache.get(py_file.name)
+        if cached is not None and cached[0] == mtime:
+            continue  # sin cambios
+        try:
+            spec = importlib.util.spec_from_file_location(py_file.stem, py_file)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _plugins_cache[py_file.name] = (mtime, mod)
+            accion = "recargado" if cached else "cargado"
+            print(f"🔌 Plugin {accion}: {py_file.name}")
+        except Exception as e:
+            print(f"❌ Error en plugin {py_file.name}: {e}")
+ 
+ 
+async def _loop_plugins():
+    """Tarea asyncio que re-escanea plugins/ cada 60 segundos."""
+    while True:
+        await asyncio.sleep(60)
+        _cargar_plugins()
+ 
+ 
+async def probar_plugins(update: Update, texto: str, cfg: dict) -> bool:
+    """
+    Itera los plugins cargados buscando coincidencia con KEYWORDS.
+    Retorna True si alguno manejó el mensaje (para cortar el flujo).
+    """
+    texto_l = texto.lower()
+    for nombre, (_, mod) in list(_plugins_cache.items()):
+        keywords = getattr(mod, "KEYWORDS", [])
+        if not any(k in texto_l for k in keywords):
+            continue
+        try:
+            if await mod.procesar(update, texto, cfg):
+                return True
+        except Exception as e:
+            print(f"❌ Error ejecutando plugin {nombre}: {e}")
+    return False
+
+# ══════════════════════════════════════════════════════════════
 # HANDLERS TELEGRAM
 # ══════════════════════════════════════════════════════════════
 
@@ -464,7 +526,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not es_admin(cfg):
         if await manejar_presencia_familia(update, texto, chat_id):
             return
-
+    if await probar_plugins(update, texto, cfg):
+        return
+    
     # ── IA ────────────────────────────────────────────────────
     await update.message.reply_text("⏳ Consultando...")
     sys_prompt = get_sys_prompt(cfg, chat_id)
@@ -619,8 +683,22 @@ def main():
     print(f"   Estado:   {ESTADO_JSON}")
     print(f"   Usuarios: {USUARIOS_DIR}")
 
-    app = Application.builder().token(BOT_TOKEN).build()
+    # app = Application.builder().token(BOT_TOKEN).build()
+
     
+async def _post_init(application):
+    """Carga inicial de plugins y arranca el loop de recarga."""
+    _cargar_plugins()
+    asyncio.create_task(_loop_plugins())
+ 
+app = (
+    Application.builder()
+    .token(BOT_TOKEN)
+    .post_init(_post_init)
+    .build()
+)
+ 
+ 
     # Manejadores de mensajes
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
