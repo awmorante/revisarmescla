@@ -687,7 +687,7 @@ def main():
 
 
     
-async def _post_init(application):
+    async def _post_init(application):
         """Carga inicial de plugins y arranca el loop de recarga."""
         _cargar_plugins()
         asyncio.create_task(_loop_plugins())
